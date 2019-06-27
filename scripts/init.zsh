@@ -24,11 +24,12 @@ _git_ass_complete() {
 
 _git() {
   local line
-  _arguments '1: :(ass)' '*: :->args'
+  _arguments '*: :->args'
 
   if [ "$line[1]" = "ass" ]; then
     _git_ass
   else
+    _describe 'command' "('ass:branch enhancer')"
     _git_orig
   fi
 }
