@@ -24,7 +24,7 @@ A custom command for git to support branch alias and association.
    ```sh
    # ~/.zshrc
 
-   fpath=( /path/to/git-ass/completions "${fpath[@]}" )
+   source path/to/git-ass/scripts/init.zsh
    ```
 
 ## Usage

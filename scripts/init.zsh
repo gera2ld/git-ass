@@ -1,4 +1,6 @@
-#compdef git
+_git 2>/dev/null
+
+functions[_git_orig]=$functions[_git]
 
 _git_ass() {
   local state
@@ -20,4 +22,13 @@ _git_ass_complete() {
   _arguments $complete
 }
 
-_git_ass
+_git() {
+  local line
+  _arguments '1: :(ass)' '*: :->args'
+
+  if [ "$line[1]" = "ass" ]; then
+    _git_ass
+  else
+    _git_orig
+  fi
+}
