@@ -1,0 +1,23 @@
+#compdef git
+
+_git_ass() {
+  local state
+  local line
+  _arguments '2: :->command' '*: :->args'
+
+  case $state in
+    (command)
+      _git_ass_complete
+      ;;
+    (*)
+      _git_ass_complete ${line[@]:1}
+      ;;
+  esac
+}
+
+_git_ass_complete() {
+  local complete=`git ass autocomplete "$@"`
+  _arguments $complete
+}
+
+_git_ass

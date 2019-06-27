@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import json
+import argparse
+import subprocess
+
+parser = argparse.ArgumentParser(description='Git branch helper')
+parser.set_defaults(name=None, handle=None)
+sub_parsers = parser.add_subparsers()
+
+def handler(parser_name, *k, specify_branch=False, **kw):
+    sub_parser = sub_parsers.add_parser(parser_name, *k, **kw)
+    if specify_branch:
+        sub_parser.add_argument('-n', '--name', help='Specify branch name')
+    def wrap(handle):
+        sub_parser.set_defaults(handle=handle)
+        return handle
+    return wrap
+
+class Branch:
+    TYPE_REL = 'release'
+    TYPE_DEV = 'development'
+
+    keys = ['type', 'name', 'desc']
+
+    def __init__(self, store, **kw):
+        self.store = store
+        self.data = {}
+        self.data.update(kw)
+
+    def __repr__(self):
+        branch_type = self.data['type']
+        branch_name = self.data['name']
+        branch_base = self.data.get('base')
+        branch_alias = self.data.get('alias')
+        return f'<Branch type={branch_type} name={branch_name} alias={branch_alias} base={branch_base}>'
+
+    def to_str(self):
+        branch_name = self.data['name']
+        branch_type = self.data['type']
+        desc = self.data.get('desc') or ''
+        alias = self.data.get('alias')
+        alias = f'({alias})' if alias else ''
+        return f'[{branch_type}]\t{branch_name} {alias}\t\t{desc}'
+
+    def __str__(self):
+        result = [self.to_str()]
+        if self.data['type'] == Branch.TYPE_DEV:
+            base = self.data.get('base')
+            release = base and self.store.find(base)
+            if release:
+                result.append(release.to_str())
+        return '\n'.join(result)
+
+    def dump(self):
+        return self.data.copy()
+
+    def update(self, info):
+        for key, value in info.items():
+            if value is None: continue
+            self.data[key] = value
+
+class Store:
+    def __init__(self, filename=None):
+        self.filename = filename
+        self.data = {}
+        self.alias = {}
+        try:
+            self.store = json.load(open(filename, encoding='utf-8'))
+        except FileNotFoundError:
+            self.store = {}
+        branch_list = self.store.get(cwd, ())
+        for branch_info in branch_list:
+            branch = Branch(self, **branch_info)
+            self.data[branch_info['name']] = branch
+            alias = branch_info.get('alias')
+            if alias:
+                self.alias[alias] = branch
+
+    def add(self, merge=True, **branch_info):
+        name = branch_info['name']
+        old_branch = self.data.get(name)
+        if old_branch is None:
+            branch = Branch(self, **branch_info)
+            self.data[name] = branch
+            print('New branch added:')
+        elif not merge:
+            raise ValueError('Branch already exists')
+        else:
+            alias = old_branch.data.get('alias')
+            if alias:
+                self.alias.pop(alias, None)
+            old_branch.update(branch_info)
+            print('Branch updated:')
+            branch = old_branch
+        alias = branch.data.get('alias')
+        if alias:
+            self.alias[alias] = branch
+        print(branch.to_str())
+
+    def remove(self, name):
+        branch = self.data.pop(name, None)
+        if branch is not None:
+            alias = branch.data.get('alias')
+            if alias:
+                self.alias.pop(alias, None)
+
+    def dump(self):
+        return [branch.dump() for branch in self.data.values()]
+
+    def dump_to_file(self):
+        data = self.dump()
+        self.store[cwd] = data
+        json.dump(self.store, open(self.filename, 'w', encoding='utf-8'), ensure_ascii=False)
+
+    def find(self, name):
+        return self.data.get(name) or self.alias.get(name)
+
+def get_branch_name():
+    name = args.name
+    if name is None:
+        stdout = subprocess.run(['git', 'branch'], capture_output=True, encoding='utf-8').stdout
+        for item in stdout.split('\n'):
+            if item.startswith('* '):
+                name = item[2:]
+                break
+    return name
+
+def get_release_branch():
+    current_branch = get_branch_name()
+    branch = store.find(current_branch)
+    if branch is not None:
+        branch_type = branch.data['type']
+        if branch_type == Branch.TYPE_REL:
+            return branch.data.get('name')
+        if branch_type == Branch.TYPE_DEV:
+            return branch.data.get('base')
+
+@handler('info', help='Show information of specified branch', specify_branch=True)
+def info():
+    current_branch = get_branch_name()
+    branch = store.find(current_branch)
+    if branch is None:
+        print('Branch info not found')
+    else:
+        print(branch)
+
+@handler('add', aliases=['update'], help='Add or update information of specified branch', specify_branch=True)
+def add():
+    branch_type = args.type
+    current_branch = get_branch_name()
+    if branch_type is None:
+        branch = store.find(current_branch)
+        branch_type = Branch.TYPE_DEV if branch is None else branch.data.get('type')
+    if branch_type == Branch.TYPE_DEV and args.base is not None:
+        store.add(type=Branch.TYPE_REL, name=args.base)
+    store.add(
+        type=branch_type,
+        base=args.base,
+        alias=args.alias,
+        name=current_branch,
+        desc=args.description)
+    store.dump_to_file()
+
+sub_parser = sub_parsers.choices['add']
+sub_parser.add_argument('-t', '--type', help='Set type of current branch', choices=[Branch.TYPE_DEV, Branch.TYPE_REL])
+sub_parser.add_argument('-B', '--base', help='Set name of base branch, usually a release branch')
+sub_parser.add_argument('-a', '--alias', help='Set alias of current branch')
+sub_parser.add_argument('-d', '--description', help='Set description of development branch')
+
+@handler('rebase', help='Rebase current branch on top of the related release branch')
+def rebase():
+    release_name = get_release_branch()
+    if release_name is None:
+        print('Release branch not found')
+        return
+    print('Release name:', release_name)
+    subprocess.run(['git', 'fetch'])
+    subprocess.run(['git', 'rebase', f'origin/{release_name}'])
+
+@handler('list', help='List branches of interest')
+def list_branches():
+    release = []
+    development = []
+    for branch in sorted(store.data.values(), key=lambda b: b.data.get('name', '')):
+        branch_type = branch.data.get('type')
+        if branch_type == Branch.TYPE_REL:
+            release.append(branch)
+        elif branch_type == Branch.TYPE_DEV:
+            development.append(branch)
+    print('Release branches:')
+    for branch in release:
+        print(branch.to_str())
+    print('Development branches:')
+    for branch in development:
+        print(branch.to_str())
+
+@handler('checkout', aliases=['co'], help='Check out a branch based on name or alias')
+def checkout():
+    branch = store.find(args.branch)
+    if branch is None:
+        print('Branch not found')
+        return
+    subprocess.run(['git', 'checkout', branch.data.get('name')])
+
+sub_parser = sub_parsers.choices['checkout']
+sub_parser.add_argument('branch', help='The branch name to check out')
+
+@handler('prune', help='Prune removed branches')
+def prune():
+    subprocess.run(['git', 'fetch', '--all', '--prune'])
+    stdout = subprocess.run(['git', 'branch', '-r'], capture_output=True, encoding='utf-8').stdout
+    remote_branches = set(name.partition('/')[2] for name in stdout.split())
+    to_remove = set()
+    to_drop_base = set()
+    for branch in store.data.values():
+        branch_type = branch.data.get('type')
+        if branch_type != Branch.TYPE_REL:
+            continue
+        branch_name = branch.data.get('name')
+        if branch_name not in remote_branches:
+            to_remove.add(branch_name)
+    for branch in store.data.values():
+        branch_type = branch.data.get('type')
+        if branch_type != Branch.TYPE_DEV:
+            continue
+        branch_base = branch.data.get('base')
+        if branch_base in to_remove:
+            to_drop_base.add(branch)
+    if to_remove:
+        print('Prune branches:')
+        for branch_name in sorted(to_remove):
+            print('-', branch_name)
+            store.remove(branch_name)
+        if to_drop_base:
+            print('Drop base:')
+            for branch in sorted(to_drop_base, key=lambda b: b.data['name']):
+                print('-', branch.data['name'])
+                branch.data.pop('base', None)
+        store.dump_to_file()
+    else:
+        print('No branch to prune')
+
+@handler('autocomplete', add_help=False)
+def autocomplete():
+    if len(args.commands) == 0:
+        items = []
+        choices = sub_parsers.choices
+        for key in sorted(choices.keys()):
+            parser = choices[key]
+            if parser.add_help:
+                items.append(key)
+        complete = ' '.join(items)
+        print(f'2: :({complete})')
+    elif len(args.commands) == 1:
+        if args.commands[0] in ('checkout', 'co'):
+            complete = ' '.join(list(store.alias.keys()) + list(store.data.keys()))
+            print(f'*: :({complete})')
+
+sub_parser = sub_parsers.choices['autocomplete']
+sub_parser.add_argument('commands', nargs='*', default=())
+
+appdir = os.path.dirname(os.path.dirname(__file__))
+datadir = os.path.join(appdir, 'data')
+cwd = os.getcwd()
+
+os.makedirs(datadir, exist_ok=True)
+store = Store(os.path.join(datadir, 'data.json'))
+
+args = parser.parse_args()
+
+if args.handle is None:
+    parser.print_help()
+else:
+    args.handle()
