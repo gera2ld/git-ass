@@ -245,7 +245,12 @@ def prune():
 
 @handler('autocomplete', add_help=False)
 def autocomplete():
-    if len(args.commands) == 0:
+    def get_command(index):
+        if index < len(args.commands):
+            return args.commands[index]
+        return ''
+    first = get_command(0)
+    if not first:
         items = []
         choices = sub_parsers.choices
         for key in sorted(choices.keys()):
@@ -254,8 +259,8 @@ def autocomplete():
                 items.append(key)
         complete = ' '.join(items)
         print(f'2: :({complete})')
-    elif len(args.commands) == 1:
-        if args.commands[0] in ('checkout', 'co'):
+    else:
+        if first in ('checkout', 'co'):
             complete = ' '.join(list(store.alias.keys()) + list(store.data.keys()))
             print(f'*: :({complete})')
 

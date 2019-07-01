@@ -12,7 +12,7 @@ _git_ass() {
       _git_ass_complete
       ;;
     (*)
-      _git_ass_complete ${line[@]:1}
+      _git_ass_complete "${line[@]:1}"
       ;;
   esac
 }
@@ -26,7 +26,7 @@ _git() {
   local line
   _arguments '*: :->args'
 
-  if [ "$line[1]" = "ass" ]; then
+  if [ ${#line} -gt 1 ] && [ "$line[1]" = "ass" ]; then
     _git_ass
   else
     _describe 'command' "('ass:branch enhancer')"
