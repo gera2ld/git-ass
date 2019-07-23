@@ -170,6 +170,17 @@ sub_parser.add_argument('-B', '--base', help='Set name of base branch, usually a
 sub_parser.add_argument('-a', '--alias', help='Set alias of current branch')
 sub_parser.add_argument('-d', '--description', help='Set description of development branch')
 
+@handler('remove', aliases=['rm'], help='Remove information of specified branch', specify_branch=True)
+def remove():
+    current_branch = get_branch_name()
+    branch = store.find(current_branch)
+    if branch is not None:
+        store.remove(current_branch)
+        print(f'Branch removed: {current_branch}')
+    else:
+        print('Branch information is not found')
+    store.dump_to_file()
+
 @handler('rebase', help='Rebase current branch on top of the related release branch')
 def rebase():
     release_name = get_release_branch()
