@@ -189,9 +189,9 @@ def remove():
 def rebase():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
-    assert store.find(branch.base) is not None, 'Base branch not found'
+    base_name = branch.base or branch.name
     subprocess.run(['git', 'fetch'])
-    subprocess.run(['git', 'rebase', f'origin/{branch.base}'])
+    subprocess.run(['git', 'rebase', f'origin/{base_name}'])
 
 @handler('list', help='List branches of interest')
 def list_branches():
