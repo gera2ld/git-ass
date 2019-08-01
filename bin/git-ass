@@ -137,8 +137,12 @@ def info():
     assert branch is not None, 'Branch info not found'
     if args.property is None:
         ancestors = [branch]
+        names = set()
+        names.add(branch.name)
         base = branch
         while True:
+            assert base.base not in names
+            names.add(base.base)
             base = store.find(base.base)
             if base is None: break
             ancestors.append(base)
