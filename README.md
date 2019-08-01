@@ -29,12 +29,12 @@ A custom command for git to support branch alias and association.
 
 ## Usage
 
-- Branch types: `development` and `release`
+- Set base
 
   E.g. add current branch as a development branch, and expect it to be merged into the release branch `release-1.0`.
 
   ```sh
-  $ git ass add -t development -B release-1.0
+  $ git ass add -B release-1.0
   ```
 
 - Alias and description
@@ -48,7 +48,11 @@ A custom command for git to support branch alias and association.
 - Show information of current branch
 
   ```sh
+  # Show all ancestors
   $ git ass info
+
+  # Show specified property of current branch
+  $ git ass info -p alias
   ```
 
 - List recorded branches
@@ -68,7 +72,7 @@ A custom command for git to support branch alias and association.
 
 - Rebase
 
-  E.g. the current branch is a development branch and related to the release branch `release-1.0` as described above,
+  E.g. the current branch is a development branch and based on the release branch `release-1.0` as described above,
   then the following command will rebase the current branch on top of the release branch.
 
   ```sh
