@@ -179,7 +179,7 @@ def remove():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
     if branch is not None:
-        store.remove(current_branch_name)
+        store.remove(branch.name)
         print(f'Branch removed: {current_branch_name}')
     else:
         print('Branch information is not found')
