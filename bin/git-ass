@@ -229,12 +229,20 @@ def prune():
     subprocess.run(['git', 'fetch', '--all', '--prune'])
     stdout = subprocess.run(['git', 'branch', '-r'], capture_output=True, encoding='utf-8').stdout
     remote_branches = set(name.partition('/')[2] for name in stdout.split())
+    stdout = subprocess.run(['git', 'branch'], capture_output=True, encoding='utf-8').stdout
+    local_branches = set(name for name in stdout.split())
     to_remove = set()
     to_drop_base = set()
     for branch in store.data.values():
         branch_name = branch.name
-        if '/' not in branch_name and branch_name not in remote_branches:
-            to_remove.add(branch_name)
+        if '/' in branch_name:
+            # local branch
+            if branch_name not in local_branches:
+                to_remove.add(branch_name)
+        else:
+            # remote branch
+            if branch_name not in remote_branches:
+                to_remove.add(branch_name)
     for branch in store.data.values():
         branch_base = branch.base
         if branch_base in to_remove:
