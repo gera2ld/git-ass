@@ -64,6 +64,9 @@ class Branch:
             if value is None: continue
             self.data[key] = value
 
+    def copy(self):
+        return Branch(self.store, **self.data)
+
 class Store:
     def __init__(self, filename=None):
         self.filename = filename
@@ -87,20 +90,18 @@ class Store:
         if old_branch is None:
             branch = Branch(self, **branch_info)
             self.data[name] = branch
-            print('New branch added:')
-        elif not merge:
-            raise ValueError('Branch already exists')
         else:
+            if not merge:
+                raise ValueError('Branch already exists')
             alias = old_branch.alias
             if alias:
                 self.alias.pop(alias, None)
-            old_branch.update(branch_info)
-            print('Branch updated:')
-            branch = old_branch
+            branch = old_branch.copy()
+            branch.update(branch_info)
         alias = branch.alias
         if alias:
             self.alias[alias] = branch
-        print(branch)
+        return branch, old_branch
 
     def remove(self, name):
         branch = self.data.pop(name, None)
@@ -162,11 +163,16 @@ def add():
         base_branch = store.find(args.base)
         assert base_branch, 'Base branch not found'
         base = base_branch.name
-    store.add(
+    branch, old_branch = store.add(
         alias=args.alias,
         base=base,
         name=current_branch_name,
         desc=args.description)
+    if old_branch is None:
+        print('New branch added:')
+    else:
+        print('Branch updated:')
+    print(branch)
     store.dump_to_file()
 
 sub_parser = sub_parsers.choices['add']
@@ -178,11 +184,10 @@ sub_parser.add_argument('-d', '--description', help='Set description of a branch
 def remove():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
-    if branch is not None:
-        store.remove(branch.name)
-        print(f'Branch removed: {current_branch_name}')
-    else:
-        print('Branch information is not found')
+    assert branch is not None, 'Branch info not found'
+    store.remove(branch.name)
+    print('Branch removed:')
+    print(branch)
     store.dump_to_file()
 
 @handler('rebase', help='Rebase current branch on top of its base branch')
