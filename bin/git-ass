@@ -89,7 +89,6 @@ class Store:
         old_branch = self.data.get(name)
         if old_branch is None:
             branch = Branch(self, **branch_info)
-            self.data[name] = branch
         else:
             if not merge:
                 raise ValueError('Branch already exists')
@@ -98,6 +97,7 @@ class Store:
                 self.alias.pop(alias, None)
             branch = old_branch.copy()
             branch.update(branch_info)
+        self.data[name] = branch
         alias = branch.alias
         if alias:
             self.alias[alias] = branch
