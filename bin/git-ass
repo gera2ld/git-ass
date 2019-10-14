@@ -34,6 +34,18 @@ def branch_property(key):
         self.data.pop(key, None)
     return property(getx, setx, delx)
 
+def get_branch_info(args = ()):
+    stdout = subprocess.run(['git', 'branch', *args], capture_output=True, encoding='utf-8').stdout
+    current = None
+    branch_list = set()
+    for item in stdout.split('\n'):
+        if not item.strip(): continue
+        branch_name = item[2:].strip()
+        if item.startswith('* '):
+            current = branch_name
+        branch_list.add(branch_name)
+    return current, branch_list
+
 class Branch:
     TYPE_REL = 'release'
     TYPE_DEV = 'development'
@@ -124,11 +136,7 @@ class Store:
 def get_branch_name():
     name = args.name
     if name is None:
-        stdout = subprocess.run(['git', 'branch'], capture_output=True, encoding='utf-8').stdout
-        for item in stdout.split('\n'):
-            if item.startswith('* '):
-                name = item[2:]
-                break
+        name, _ = get_branch_info()
     return name
 
 @handler('info', help='Show information of specified branch', specify_branch=True)
@@ -232,10 +240,8 @@ sub_parser.add_argument('branch', help='The branch name to check out')
 @handler('prune', help='Prune removed branches')
 def prune():
     subprocess.run(['git', 'fetch', '--all', '--prune'])
-    stdout = subprocess.run(['git', 'branch', '-r'], capture_output=True, encoding='utf-8').stdout
-    remote_branches = set(name.partition('/')[2] for name in stdout.split())
-    stdout = subprocess.run(['git', 'branch'], capture_output=True, encoding='utf-8').stdout
-    local_branches = set(name for name in stdout.split())
+    _, remote_branches = get_branch_info(('-r',))
+    _, local_branches = get_branch_info()
     to_remove = set()
     to_drop_base = set()
     for branch in store.data.values():
@@ -265,6 +271,28 @@ def prune():
         store.dump_to_file()
     else:
         print('No branch to prune')
+
+@handler('purge', help='Remove merged branches locally')
+def purge():
+    current, local_branches = get_branch_info()
+    print('Purge local branches:')
+    for branch_name in local_branches:
+        if branch_name == current: continue
+        print('-', branch_name, end='')
+        ret = subprocess.run(['git', 'branch', '-d', branch_name], capture_output=True, encoding='utf-8')
+        if ret.returncode:
+            if ' is not fully merged.' in ret.stderr:
+                # branch is not fully merged
+                print(' - not fully merged, skipped')
+                continue
+            error = ret.stderr
+        else:
+            error = None
+        if error is not None:
+            print(' - error')
+            print(error)
+        else:
+            print(' - ok')
 
 @handler('autocomplete', add_help=False)
 def autocomplete():
