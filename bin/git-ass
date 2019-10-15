@@ -338,7 +338,7 @@ def autocomplete():
         complete = ' '.join(items)
         print(f'2: :({complete})')
     else:
-        if first in ('checkout', 'co'):
+        if first in ('checkout', 'co', 'find', 'f'):
             complete = ' '.join(list(store.alias.keys()) + list(store.data.keys()))
             print(f'*: :({complete})')
 
