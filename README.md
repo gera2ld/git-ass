@@ -29,6 +29,12 @@ A custom command for git to support branch alias and association.
 
 ## Usage
 
+Abbreviation is recommended:
+
+```sh
+alias a='git ass'
+```
+
 - Set base
 
   E.g. add current branch as a development branch, and expect it to be merged into the release branch `release-1.0`.
@@ -67,7 +73,7 @@ A custom command for git to support branch alias and association.
   # Check out `awesome`
   $ git ass checkout awesome
   # or
-  $ git ass co awesome
+  $ a co awesome
   ```
 
 - Rebase
@@ -79,6 +85,30 @@ A custom command for git to support branch alias and association.
   $ git ass rebase
   ```
 
-## Snapshots
+- Find a branch by alias
 
-![image](https://user-images.githubusercontent.com/3139113/60232717-079f2300-98d0-11e9-9459-8b195b23beef.png)
+  ```sh
+  $ git ass find awesome
+  # or
+  $ a f awesome
+  ```
+
+- Use with git
+
+  ```sh
+  $ git checkout `git ass find awesome`
+  # or
+  $ gco `a f awesome`
+  ```
+
+- Purge locally merged branches
+
+  ```sh
+  $ git ass purge
+  ```
+
+- Prune inexistent branches
+
+  ```sh
+  $ git ass prune
+  ```

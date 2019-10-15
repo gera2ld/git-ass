@@ -10,19 +10,44 @@ parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
 sub_parsers = parser.add_subparsers()
 
-def handler(parser_name, *k, specify_branch=False, **kw):
-    sub_parser = sub_parsers.add_parser(parser_name, *k, **kw)
-    sub_parser.add_argument('-s', '--silent', help='Suppress errors', action='store_true')
-    if specify_branch:
-        sub_parser.add_argument('-n', '--name', help='Specify branch name')
+class Command:
+    def __init__(self, handle, name, *k, **kw):
+        self.name = name
+        self.parser = sub_parsers.add_parser(name, *k, **kw)
+        self.handle = handle
+        self.parser.set_defaults(handle=self)
+        if hasattr(handle, '__params__'):
+            for k, kw in handle.__params__:
+                self.add_argument(*k, **kw)
+            del handle.__params__
+
+    def __call__(self, *k, **kw):
+        try:
+            return self.handle(*k, **kw)
+        except AssertionError:
+            if not args.silent: raise
+
+    def add_argument(self, *k, **kw):
+        self.parser.add_argument(*k, **kw)
+
+def command(parser_name, *k, specify_branch=False, **kw):
     def wrap(handle):
-        def wrapped_handle(*k, **kw):
-            try:
-                return handle(*k, **kw)
-            except AssertionError:
-                if not args.silent: raise
-        sub_parser.set_defaults(handle=wrapped_handle)
-        return wrapped_handle
+        command = Command(handle, parser_name, *k, **kw)
+        command.add_argument('-s', '--silent', help='Suppress errors', action='store_true')
+        if specify_branch:
+            command.add_argument('-n', '--name', help='Specify branch name')
+        return command
+    return wrap
+
+def argument(*k, **kw):
+    def wrap(handle):
+        if isinstance(handle, Command):
+            handle.add_argument(*k, **kw)
+        else:
+            if not hasattr(handle, '__params__'):
+                handle.__params__ = []
+            handle.__params__.append((k, kw))
+        return handle
     return wrap
 
 def branch_property(key):
@@ -139,7 +164,8 @@ def get_branch_name():
         name, _ = get_branch_info()
     return name
 
-@handler('info', help='Show information of specified branch', specify_branch=True)
+@command('info', help='Show information of specified branch', specify_branch=True)
+@argument('-p', '--property', help='Specify property name')
 def info():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
@@ -160,10 +186,10 @@ def info():
     else:
         print(getattr(branch, args.property, None) or '')
 
-sub_parser = sub_parsers.choices['info']
-sub_parser.add_argument('-p', '--property', help='Specify property name')
-
-@handler('add', aliases=['update'], help='Add or update information of specified branch', specify_branch=True)
+@command('add', aliases=['update'], help='Add or update information of specified branch', specify_branch=True)
+@argument('-B', '--base', help='Set name of base branch')
+@argument('-a', '--alias', help='Set alias of current branch')
+@argument('-d', '--description', help='Set description of a branch')
 def add():
     current_branch_name = get_branch_name()
     base = None
@@ -183,12 +209,14 @@ def add():
     print(branch)
     store.dump_to_file()
 
-sub_parser = sub_parsers.choices['add']
-sub_parser.add_argument('-B', '--base', help='Set name of base branch')
-sub_parser.add_argument('-a', '--alias', help='Set alias of current branch')
-sub_parser.add_argument('-d', '--description', help='Set description of a branch')
+@command('find', aliases=['f'], help='Find branch by alias')
+@argument('branch', help='The name or alias of the branch to find')
+def find():
+    branch = store.find(args.branch)
+    assert branch is not None, 'Branch info not found'
+    print(branch.name)
 
-@handler('remove', aliases=['rm'], help='Remove information of specified branch', specify_branch=True)
+@command('remove', aliases=['rm'], help='Remove information of specified branch', specify_branch=True)
 def remove():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
@@ -198,7 +226,7 @@ def remove():
     print(branch)
     store.dump_to_file()
 
-@handler('rebase', help='Rebase current branch on top of its base branch')
+@command('rebase', help='Rebase current branch on top of its base branch')
 def rebase():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
@@ -206,7 +234,7 @@ def rebase():
     subprocess.run(['git', 'fetch'])
     subprocess.run(['git', 'rebase', f'origin/{base_name}'])
 
-@handler('list', help='List branches of interest')
+@command('list', help='List branches of interest')
 def list_branches():
     current_branch_name = get_branch_name()
     parent_map = {}
@@ -228,16 +256,14 @@ def list_branches():
     for branch_name in sorted(key for (key, value) in parent_map.items() if value is None):
         dump_branch(branch_name)
 
-@handler('checkout', aliases=['co'], help='Check out a branch based on name or alias')
+@command('checkout', aliases=['co'], help='Check out a branch based on name or alias')
+@argument('branch', help='The branch name to check out')
 def checkout():
     branch = store.find(args.branch)
     assert branch is not None, 'Branch not found'
     subprocess.run(['git', 'checkout', branch.name])
 
-sub_parser = sub_parsers.choices['checkout']
-sub_parser.add_argument('branch', help='The branch name to check out')
-
-@handler('prune', help='Prune removed branches')
+@command('prune', help='Prune inexistent branches')
 def prune():
     subprocess.run(['git', 'fetch', '--all', '--prune'])
     _, remote_branches = get_branch_info(('-r',))
@@ -272,7 +298,7 @@ def prune():
     else:
         print('No branch to prune')
 
-@handler('purge', help='Remove merged branches locally')
+@command('purge', help='Remove locally merged branches')
 def purge():
     current, local_branches = get_branch_info()
     print('Purge local branches:')
@@ -294,7 +320,8 @@ def purge():
         else:
             print(' - ok')
 
-@handler('autocomplete', add_help=False)
+@command('autocomplete', add_help=False)
+@argument('commands', nargs='*', default=())
 def autocomplete():
     def get_command(index):
         if index < len(args.commands):
@@ -314,9 +341,6 @@ def autocomplete():
         if first in ('checkout', 'co'):
             complete = ' '.join(list(store.alias.keys()) + list(store.data.keys()))
             print(f'*: :({complete})')
-
-sub_parser = sub_parsers.choices['autocomplete']
-sub_parser.add_argument('commands', nargs='*', default=())
 
 appdir = os.path.dirname(os.path.dirname(__file__))
 datadir = os.path.join(appdir, 'data')
