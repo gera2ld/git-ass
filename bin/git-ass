@@ -8,12 +8,12 @@ import subprocess
 
 parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
-sub_parsers = parser.add_subparsers()
+subparsers = parser.add_subparsers()
 
 class Command:
     def __init__(self, handle, name, *k, **kw):
         self.name = name
-        self.parser = sub_parsers.add_parser(name, *k, **kw)
+        self.parser = subparsers.add_parser(name, *k, **kw)
         self.handle = handle
         self.parser.set_defaults(handle=self)
         if hasattr(handle, '__params__'):
@@ -331,7 +331,7 @@ def autocomplete():
     first = get_command(0)
     if not first:
         items = []
-        choices = sub_parsers.choices
+        choices = subparsers.choices
         for key in sorted(choices.keys()):
             parser = choices[key]
             if parser.add_help:
