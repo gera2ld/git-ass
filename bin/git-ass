@@ -10,6 +10,12 @@ parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
 subparsers = parser.add_subparsers()
 
+def run_command(args, debug=os.environ.get('DEBUG')):
+    if debug:
+        print('$', ' '.join(args))
+    process = subprocess.run(args, capture_output=True, encoding='utf-8')
+    return process
+
 class Command:
     def __init__(self, handle, name, *k, **kw):
         self.name = name
@@ -60,7 +66,7 @@ def branch_property(key):
     return property(getx, setx, delx)
 
 def get_branch_info(args = ()):
-    stdout = subprocess.run(['git', 'branch', *args], capture_output=True, encoding='utf-8').stdout
+    stdout = run_command(['git', 'branch', *args]).stdout
     current = None
     branch_list = set()
     for item in stdout.split('\n'):
@@ -161,7 +167,7 @@ class Store:
 def get_branch_name():
     name = args.name
     if name is None:
-        name, _ = get_branch_info()
+        name = run_command(['git', 'name-rev', '--name-only', '@']).stdout.strip()
     return name
 
 @command('info', help='Show information of specified branch', specify_branch=True)
@@ -231,8 +237,8 @@ def rebase():
     current_branch_name = get_branch_name()
     branch = store.find(current_branch_name)
     base_name = branch.base or branch.name
-    subprocess.run(['git', 'fetch'])
-    subprocess.run(['git', 'rebase', f'origin/{base_name}'])
+    run_command(['git', 'fetch'])
+    run_command(['git', 'rebase', f'origin/{base_name}'])
 
 @command('list', help='List branches of interest')
 def list_branches():
@@ -261,11 +267,11 @@ def list_branches():
 def checkout():
     branch = store.find(args.branch)
     assert branch is not None, 'Branch not found'
-    subprocess.run(['git', 'checkout', branch.name])
+    run_command(['git', 'checkout', branch.name])
 
 @command('prune', help='Prune inexistent branches')
 def prune():
-    subprocess.run(['git', 'fetch', '--all', '--prune'])
+    run_command(['git', 'fetch', '--all', '--prune'])
     _, remote_branches = get_branch_info(('-r',))
     _, local_branches = get_branch_info()
     remote_branches = set(name.partition('/')[2] for name in remote_branches)
@@ -306,7 +312,7 @@ def purge():
     for branch_name in local_branches:
         if branch_name == current: continue
         print('-', branch_name, end='')
-        ret = subprocess.run(['git', 'branch', '-d', branch_name], capture_output=True, encoding='utf-8')
+        ret = run_command(['git', 'branch', '-d', branch_name])
         if ret.returncode:
             if ' is not fully merged.' in ret.stderr:
                 # branch is not fully merged
@@ -320,6 +326,19 @@ def purge():
             print(error)
         else:
             print(' - ok')
+
+@command('push', aliases=['p'], help='Push to remote and check if code is changed')
+@argument('args', nargs='*', default=())
+def push():
+    run_command(['git', 'push', *unknown])
+    run_command(['git', 'fetch'])
+    remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}']).stdout.strip()
+    remote = remote[13:]
+    local_hash = run_command(['git', 'rev-parse', '@']).stdout.strip()
+    remote_hash = run_command(['git', 'rev-parse', remote]).stdout.strip()
+    if local_hash != remote_hash:
+        print(f'Your branch is different from `{remote}`,\nit is likely that malicious commits are injected.')
+        exit(1)
 
 @command('autocomplete', add_help=False)
 @argument('commands', nargs='*', default=())
@@ -350,7 +369,7 @@ cwd = os.getcwd()
 os.makedirs(datadir, exist_ok=True)
 store = Store(os.path.join(datadir, 'data.json'))
 
-args = parser.parse_args()
+args, unknown = parser.parse_known_args()
 
 if args.handle is None:
     parser.print_help()
