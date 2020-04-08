@@ -10,10 +10,14 @@ parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
 subparsers = parser.add_subparsers()
 
-def run_command(args, debug=os.environ.get('DEBUG')):
+def run_command(args, capture=False, debug=os.environ.get('DEBUG')):
     if debug:
         print('$', ' '.join(args))
-    process = subprocess.run(args, capture_output=True, encoding='utf-8')
+    kw = {}
+    if capture:
+        kw['capture_output'] = True
+        kw['encoding'] = 'utf-8'
+    process = subprocess.run(args, **kw)
     return process
 
 class Command:
@@ -66,7 +70,7 @@ def branch_property(key):
     return property(getx, setx, delx)
 
 def get_branch_info(args = ()):
-    stdout = run_command(['git', 'branch', *args]).stdout
+    stdout = run_command(['git', 'branch', *args], capture=True).stdout
     current = None
     branch_list = set()
     for item in stdout.split('\n'):
@@ -167,7 +171,7 @@ class Store:
 def get_branch_name():
     name = args.name
     if name is None:
-        name = run_command(['git', 'name-rev', '--name-only', '@']).stdout.strip()
+        name = run_command(['git', 'name-rev', '--name-only', '@'], capture=True).stdout.strip()
     return name
 
 @command('info', help='Show information of specified branch', specify_branch=True)
@@ -312,7 +316,7 @@ def purge():
     for branch_name in local_branches:
         if branch_name == current: continue
         print('-', branch_name, end='')
-        ret = run_command(['git', 'branch', '-d', branch_name])
+        ret = run_command(['git', 'branch', '-d', branch_name], capture=True)
         if ret.returncode:
             if ' is not fully merged.' in ret.stderr:
                 # branch is not fully merged
@@ -332,10 +336,10 @@ def purge():
 def push():
     run_command(['git', 'push', *unknown])
     run_command(['git', 'fetch'])
-    remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}']).stdout.strip()
+    remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}'], capture=True).stdout.strip()
     remote = remote[13:]
-    local_hash = run_command(['git', 'rev-parse', '@']).stdout.strip()
-    remote_hash = run_command(['git', 'rev-parse', remote]).stdout.strip()
+    local_hash = run_command(['git', 'rev-parse', '@'], capture=True).stdout.strip()
+    remote_hash = run_command(['git', 'rev-parse', remote], capture=True).stdout.strip()
     if local_hash != remote_hash:
         print(f'Your branch is different from `{remote}`,\nit is likely that malicious commits are injected.')
         exit(1)
