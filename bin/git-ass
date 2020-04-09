@@ -337,10 +337,8 @@ def push():
     run_command(['git', 'push', *unknown])
     run_command(['git', 'fetch'])
     remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}'], capture=True).stdout.strip()
-    remote = remote[13:]
-    local_hash = run_command(['git', 'rev-parse', '@'], capture=True).stdout.strip()
-    remote_hash = run_command(['git', 'rev-parse', remote], capture=True).stdout.strip()
-    if local_hash != remote_hash:
+    ret = run_command(['git', 'diff', '@', remote, '--exit-code'])
+    if ret.returncode:
         print(f'Your branch is different from `{remote}`,\nit is likely that malicious commits are injected.')
         exit(1)
 
