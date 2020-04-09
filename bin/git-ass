@@ -339,7 +339,11 @@ def push():
     remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}'], capture=True).stdout.strip()
     ret = run_command(['git', 'diff', '@', remote, '--exit-code'])
     if ret.returncode:
-        print(f'Your branch is different from `{remote}`,\nit is likely that malicious commits are injected.')
+        print(
+            '\n\x1b[31m' +
+            f'Your branch is different from `{remote}`,\nit is likely that malicious commits are injected.' +
+            '\x1b[0m'
+        )
         exit(1)
 
 @command('autocomplete', add_help=False)
