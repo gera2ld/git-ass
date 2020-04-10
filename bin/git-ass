@@ -171,7 +171,7 @@ class Store:
 def get_branch_name():
     name = args.name
     if name is None:
-        name = run_command(['git', 'name-rev', '--name-only', '@'], capture=True).stdout.strip()
+        name = run_command(['git', 'rev-parse', '--abbrev-ref', '@'], capture=True).stdout.strip()
     return name
 
 @command('info', help='Show information of specified branch', specify_branch=True)
