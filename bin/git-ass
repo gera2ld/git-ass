@@ -10,6 +10,9 @@ parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
 subparsers = parser.add_subparsers()
 
+class GitAssError(Exception):
+    pass
+
 def run_command(args, capture=False, ensure_success=True, debug=os.environ.get('DEBUG')):
     if debug:
         print('$', ' '.join(args))
@@ -19,7 +22,7 @@ def run_command(args, capture=False, ensure_success=True, debug=os.environ.get('
         kw['encoding'] = 'utf-8'
     process = subprocess.run(args, **kw)
     if ensure_success and process.returncode:
-        raise Exception('Command failed: ' + ' '.join(args))
+        raise GitAssError('Command failed: ' + ' '.join(args))
     return process
 
 class Command:
@@ -36,7 +39,7 @@ class Command:
     def __call__(self, *k, **kw):
         try:
             return self.handle(*k, **kw)
-        except AssertionError:
+        except (AssertionError, GitAssError):
             if not args.silent: raise
 
     def add_argument(self, *k, **kw):
