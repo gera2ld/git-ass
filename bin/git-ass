@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description='Git branch helper')
 parser.set_defaults(name=None, handle=None)
 subparsers = parser.add_subparsers()
 
-def run_command(args, capture=False, debug=os.environ.get('DEBUG')):
+def run_command(args, capture=False, ensure_success=True, debug=os.environ.get('DEBUG')):
     if debug:
         print('$', ' '.join(args))
     kw = {}
@@ -18,6 +18,8 @@ def run_command(args, capture=False, debug=os.environ.get('DEBUG')):
         kw['capture_output'] = True
         kw['encoding'] = 'utf-8'
     process = subprocess.run(args, **kw)
+    if ensure_success and process.returncode:
+        raise Exception('Command failed: ' + ' '.join(args))
     return process
 
 class Command:
@@ -316,7 +318,7 @@ def purge():
     for branch_name in local_branches:
         if branch_name == current: continue
         print('-', branch_name, end='')
-        ret = run_command(['git', 'branch', '-d', branch_name], capture=True)
+        ret = run_command(['git', 'branch', '-d', branch_name], capture=True, ensure_success=False)
         if ret.returncode:
             if ' is not fully merged.' in ret.stderr:
                 # branch is not fully merged
@@ -332,12 +334,11 @@ def purge():
             print(' - ok')
 
 @command('push', aliases=['p'], help='Push to remote and check if code is changed')
-@argument('args', nargs='*', default=())
 def push():
     run_command(['git', 'push', *unknown])
     run_command(['git', 'fetch'])
     remote = run_command(['git', 'rev-parse', '--symbolic-full-name', '@{u}'], capture=True).stdout.strip()
-    ret = run_command(['git', 'diff', '@', remote, '--exit-code'])
+    ret = run_command(['git', 'diff', '@', remote, '--exit-code'], ensure_success=False)
     if ret.returncode:
         print(
             '\n\x1b[31m' +
