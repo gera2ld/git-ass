@@ -45,12 +45,10 @@ class Command:
     def add_argument(self, *k, **kw):
         self.parser.add_argument(*k, **kw)
 
-def command(parser_name, *k, specify_branch=False, **kw):
+def command(parser_name, *k, **kw):
     def wrap(handle):
         command = Command(handle, parser_name, *k, **kw)
         command.add_argument('-s', '--silent', help='Suppress errors', action='store_true')
-        if specify_branch:
-            command.add_argument('-n', '--name', help='Specify branch name')
         return command
     return wrap
 
@@ -173,18 +171,19 @@ class Store:
     def find(self, name):
         return self.data.get(name) or self.alias.get(name)
 
-def get_branch_name():
-    name = args.name
-    if name is None:
-        name = run_command(['git', 'rev-parse', '--abbrev-ref', '@'], capture=True).stdout.strip()
-    return name
+def get_current_branch_name():
+    return run_command(['git', 'rev-parse', '--abbrev-ref', '@'], capture=True).stdout.strip()
 
-@command('info', help='Show information of specified branch', specify_branch=True)
+def get_branch(name=None):
+    branch = store.find(name or get_current_branch_name())
+    assert branch is not None, f'Branch {name} not found'
+    return branch
+
+@command('info', help='Show information of specified branch')
 @argument('-p', '--property', help='Specify property name')
+@argument('branch', help='The name or alias of the target branch', nargs='?')
 def info():
-    current_branch_name = get_branch_name()
-    branch = store.find(current_branch_name)
-    assert branch is not None, 'Branch info not found'
+    branch = get_branch(args.branch)
     if args.property is None:
         ancestors = [branch]
         names = set()
@@ -201,12 +200,12 @@ def info():
     else:
         print(getattr(branch, args.property, None) or '')
 
-@command('add', aliases=['update'], help='Add or update information of specified branch', specify_branch=True)
-@argument('-B', '--base', help='Set name of base branch')
+@command('add', aliases=['update'], help='Add or update information of specified branch')
+@argument('-B', '--base', help='Set base branch')
 @argument('-a', '--alias', help='Set alias of current branch')
 @argument('-d', '--description', help='Set description of a branch')
+@argument('branch', help='The name or alias of the target branch', nargs='?')
 def add():
-    current_branch_name = get_branch_name()
     base = None
     if args.base:
         base_branch = store.find(args.base)
@@ -215,7 +214,7 @@ def add():
     branch, old_branch = store.add(
         alias=args.alias,
         base=base,
-        name=current_branch_name,
+        name=args.branch or get_current_branch_name(),
         desc=args.description)
     if old_branch is None:
         print('New branch added:')
@@ -225,17 +224,15 @@ def add():
     store.dump_to_file()
 
 @command('find', aliases=['f'], help='Find branch by alias')
-@argument('branch', help='The name or alias of the branch to find')
+@argument('branch', help='The name or alias of the target branch', nargs='?')
 def find():
-    branch = store.find(args.branch)
-    assert branch is not None, 'Branch info not found'
+    branch = get_branch(args.branch)
     print(branch.name)
 
-@command('remove', aliases=['rm'], help='Remove information of specified branch', specify_branch=True)
+@command('remove', aliases=['rm'], help='Remove information of specified branch')
+@argument('branch', help='The name or alias of the target branch', nargs='?')
 def remove():
-    current_branch_name = get_branch_name()
-    branch = store.find(current_branch_name)
-    assert branch is not None, 'Branch info not found'
+    branch = get_branch(args.branch)
     store.remove(branch.name)
     print('Branch removed:')
     print(branch)
@@ -243,15 +240,14 @@ def remove():
 
 @command('rebase', help='Rebase current branch on top of its base branch')
 def rebase():
-    current_branch_name = get_branch_name()
-    branch = store.find(current_branch_name)
-    base_name = branch.base or branch.name
+    current_branch = get_branch()
+    base_name = current_branch.base or current_branch.name
     run_command(['git', 'fetch'])
     run_command(['git', 'rebase', f'origin/{base_name}'])
 
 @command('list', help='List branches of interest')
 def list_branches():
-    current_branch_name = get_branch_name()
+    current_branch_name = get_current_branch_name()
     parent_map = {}
     child_map = {}
     for branch in store.data.values():
@@ -272,10 +268,9 @@ def list_branches():
         dump_branch(branch_name)
 
 @command('checkout', aliases=['co'], help='Check out a branch based on name or alias')
-@argument('branch', help='The branch name to check out')
+@argument('branch', help='The name or alias of the target branch', nargs='?')
 def checkout():
-    branch = store.find(args.branch)
-    assert branch is not None, 'Branch not found'
+    branch = get_branch(args.branch)
     run_command(['git', 'checkout', branch.name])
 
 @command('prune', help='Prune inexistent branches')
@@ -368,7 +363,7 @@ def autocomplete():
         complete = ' '.join(items)
         print(f'2: :({complete})')
     else:
-        if first in ('checkout', 'co', 'find', 'f'):
+        if first in ('info', 'add', 'update', 'remove', 'rm', 'checkout', 'co', 'find', 'f'):
             complete = ' '.join(list(store.alias.keys()) + list(store.data.keys()))
             print(f'*: :({complete})')
 
