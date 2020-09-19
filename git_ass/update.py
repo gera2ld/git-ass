@@ -22,7 +22,7 @@ def check_repo(project_dir):
     if not working:
         stream.write(colored_text('aborted', 'yellow'))
         return stream.getvalue()
-    commander = Commander(cwd=project_dir)
+    commander = Commander(cwd=project_dir, capture=True)
     if not os.path.isdir(os.path.join(project_dir, '.git')):
         stream.write(colored_text('invalid repo, skipped', 'yellow'))
         return stream.getvalue()

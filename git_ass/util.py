@@ -1,14 +1,17 @@
 import os
 import subprocess
 
+class GitAssError(Exception):
+    pass
+
 class Commander:
     def __init__(self, **options):
         self.options = options
 
-    def run(self, args, options={}):
+    def run(self, args, **options):
         merged = {
             'cwd': None,
-            'capture': True,
+            'capture': False,
             'ensure_success': True,
             'debug': os.environ.get('DEBUG'),
         }
@@ -24,22 +27,20 @@ class Commander:
             kw['encoding'] = 'utf-8'
         process = subprocess.run(args, **kw)
         if merged['ensure_success'] and process.returncode:
-            raise Exception('Command failed: ' + ' '.join(args))
+            raise GitAssError('Command failed: ' + ' '.join(args))
         return process
 
-    def test(self, args, options={}):
-        options = options.copy()
+    def test(self, args, **options):
         options['ensure_success'] = True
         try:
-            self.run(args, options)
+            self.run(args, **options)
             return True
         except:
             return False
 
-    def read(self, args, options={}):
-        options = options.copy()
+    def read(self, args, **options):
         options['capture'] = True
-        return self.run(args, options).stdout.strip()
+        return self.run(args, **options).stdout.strip()
 
 COLOR_MAP = {
     'red': 31,
