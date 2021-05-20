@@ -1,8 +1,7 @@
-import os
-import sys
-import json
 import argparse
-import subprocess
+import json
+import os
+
 from .util import Commander, GitAssError
 
 parser = argparse.ArgumentParser(description='Git branch helper')
@@ -229,7 +228,7 @@ def rebase():
     current_branch = get_branch()
     base_name = current_branch.base or current_branch.name
     commander.run(['git', 'fetch'])
-    commander.run(['git', 'rebase', f'origin/{base_name}'])
+    commander.run(['git', 'rebase', f'origin/{base_name}', *unknown])
 
 @command('list', help='List branches of interest')
 def list_branches():

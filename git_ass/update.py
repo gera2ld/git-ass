@@ -9,10 +9,11 @@ Usage:
 '''
 
 import asyncio
-import concurrent
+import concurrent.futures
 import io
 import os
 import sys
+
 from .util import Commander, colored_text
 
 def check_repo(project_dir):
