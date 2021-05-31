@@ -135,6 +135,9 @@ class Store:
         self.data[name] = branch
         alias = branch.alias
         if alias:
+            conflict = self.alias.get(alias)
+            if conflict:
+                conflict.alias = None
             self.alias[alias] = branch
         return branch, old_branch
 
