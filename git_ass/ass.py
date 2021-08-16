@@ -160,7 +160,7 @@ class Store:
         return self.data.get(name) or self.alias.get(name)
 
 def get_current_branch_name():
-    return commander.read(['git', 'rev-parse', '--abbrev-ref', '@'])
+    return commander.read(['git', 'rev-parse', '--abbrev-ref', '@']).strip()
 
 def get_branch(name=None):
     branch = store.find(name or get_current_branch_name())
@@ -323,7 +323,7 @@ def purge():
 def push():
     commander.run(['git', 'push', *unknown])
     commander.run(['git', 'fetch'])
-    remote = commander.read(['git', 'rev-parse', '--symbolic-full-name', '@{u}'])
+    remote = commander.read(['git', 'rev-parse', '--symbolic-full-name', '@{u}']).strip()
     ret = commander.run(['git', 'diff', remote, '--exit-code'], ensure_success=False)
     if ret.returncode:
         print(

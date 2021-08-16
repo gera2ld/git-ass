@@ -40,7 +40,7 @@ class Commander:
 
     def read(self, args, **options):
         options['capture'] = True
-        return self.run(args, **options).stdout.strip()
+        return self.run(args, **options).stdout
 
 COLOR_MAP = {
     'red': 31,
